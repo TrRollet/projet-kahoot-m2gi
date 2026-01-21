@@ -1,0 +1,7 @@
+{
+  "name": "projet-kahoot",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "vue-vite"
+}
