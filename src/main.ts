@@ -1,6 +1,10 @@
 import { createApp } from 'vue'
+import { createPinia } from 'pinia'
+import { VueFire, VueFireAuth } from 'vuefire'
+import { firebaseApp } from './firebase/config'
 import App from './App.vue'
 import router from './router';
+import { useAuthStore } from './stores/auth.store';
 
 import { IonicVue } from '@ionic/vue';
 
@@ -36,7 +40,16 @@ import './theme/variables.css';
 
 const app = createApp(App)
   .use(IonicVue)
+  .use(createPinia())
+  .use(VueFire, {
+    firebaseApp,
+    modules: [VueFireAuth()]
+  })
   .use(router);
+
+// Initialiser le listener d'authentification
+const authStore = useAuthStore()
+authStore.initAuthListener()
 
 router.isReady().then(() => {
   app.mount('#app');
