@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonButtons, IonBackButton, IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonList, IonItem, IonLabel, IonButton, IonIcon, IonSpinner, loadingController, modalController, toastController } from '@ionic/vue';
-import { createOutline, trashOutline, playCircleOutline, shareOutline } from 'ionicons/icons';
+import { IonContent, IonHeader, IonPage, IonToolbar, IonButtons, IonBackButton, IonButton, IonIcon, IonSpinner, loadingController, modalController, toastController } from '@ionic/vue';
+import { createOutline, trashOutline, playOutline, shareOutline, layersOutline, exitOutline } from 'ionicons/icons';
 import { onMounted, ref, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuizStore } from '@/stores/quiz.store';
 import { useAuthStore } from '@/stores/auth.store';
 import { useGameStore } from '@/stores/game.store';
+import { useNetwork } from '@/utils/useNetwork';
 import QuizFormModal from '@/components/QuizFormModal.vue';
 import ShareQuizModal from '@/components/ShareQuizModal.vue';
+import OfflineBanner from '@/components/OfflineBanner.vue';
 import type { Quiz } from '@/models/quiz';
 
 const route = useRoute();
@@ -19,11 +21,19 @@ const quiz = ref<Quiz | null>(null);
 const isLoading = ref(true);
 const showShareModal = ref(false);
 
-// Vérifier les permissions
 const currentUserId = computed(() => authStore.currentUser?.uid || '');
+const { isOnline } = useNetwork();
 const userRole = computed(() => {
   if (!quiz.value || !currentUserId.value) return 'none';
   return quizStore.getUserRole(quiz.value, currentUserId.value);
+});
+const userRoleLabel = computed(() => {
+  switch (userRole.value) {
+    case 'owner': return 'Propriétaire'
+    case 'editor': return 'Éditeur'
+    case 'reader': return 'Lecteur'
+    default: return ''
+  }
 });
 const canEditQuiz = computed(() => {
   if (!quiz.value || !currentUserId.value) return false;
@@ -53,98 +63,67 @@ const loadQuiz = async () => {
 
 const openEditModal = async () => {
   if (!quiz.value) return;
-
   const modal = await modalController.create({
     component: QuizFormModal,
-    componentProps: {
-      quiz: quiz.value,
-      title: 'Modifier le Quiz'
-    }
+    componentProps: { quiz: quiz.value, title: 'Modifier le quiz' }
   });
-
   await modal.present();
-
   const { data, role } = await modal.onWillDismiss();
-
   if (role === 'confirm' && data) {
     const updatedQuiz: Quiz = {
-      id: quiz.value.id,
-      title: data.title,
-      description: data.description,
-      questions: data.questions,
-      ownerId: quiz.value.ownerId,
-      editors: quiz.value.editors,
-      readers: quiz.value.readers
+      id: quiz.value.id, title: data.title, description: data.description,
+      questions: data.questions, ownerId: quiz.value.ownerId,
+      editors: quiz.value.editors, readers: quiz.value.readers
     };
-
-    const loading = await loadingController.create({
-      message: 'Mise à jour du quiz...',
-      spinner: 'crescent'
-    });
+    const loading = await loadingController.create({ message: 'Mise à jour...', spinner: 'crescent' });
     await loading.present();
-
     try {
       await quizStore.updateQuiz(updatedQuiz);
       await loadQuiz();
       await loading.dismiss();
-      const toast = await toastController.create({
-        message: 'Quiz modifié avec succès !',
-        duration: 2000,
-        color: 'success'
-      });
+      const toast = await toastController.create({ position: 'top', message: 'Quiz modifié !', duration: 2000, color: 'success' });
       await toast.present();
-    } catch (error) {
+    } catch {
       await loading.dismiss();
-      const toast = await toastController.create({
-        message: 'Erreur lors de la modification du quiz',
-        duration: 2000,
-        color: 'danger'
-      });
+      const toast = await toastController.create({ position: 'top', message: 'Erreur de modification', duration: 2000, color: 'danger' });
       await toast.present();
     }
   }
 };
 
 const handleDelete = async () => {
-  if (quiz.value && confirm('Êtes-vous sûr de vouloir supprimer ce quiz ?')) {
+  if (quiz.value && confirm('Supprimer ce quiz ?')) {
     const quizId = quiz.value.id;
-    
-    const loading = await loadingController.create({
-      message: 'Suppression du quiz...',
-      spinner: 'crescent'
-    });
+    const loading = await loadingController.create({ message: 'Suppression...', spinner: 'crescent' });
     await loading.present();
-    
     try {
       await quizStore.deleteQuiz(quizId);
       await loading.dismiss();
-      const toast = await toastController.create({
-        message: 'Quiz supprimé avec succès',
-        duration: 2000,
-        color: 'success'
-      });
+      const toast = await toastController.create({ position: 'top', message: 'Quiz supprimé', duration: 2000, color: 'success' });
       await toast.present();
       await router.push('/home');
-    } catch (error) {
+    } catch {
       await loading.dismiss();
-      console.error('Erreur lors de la suppression:', error);
-      const toast = await toastController.create({
-        message: 'Erreur lors de la suppression du quiz',
-        duration: 2000,
-        color: 'danger'
-      });
+      const toast = await toastController.create({ position: 'top', message: 'Erreur de suppression', duration: 2000, color: 'danger' });
       await toast.present();
     }
   }
 };
 
-const openShareModal = () => {
-  showShareModal.value = true;
-};
+const openShareModal = () => { showShareModal.value = true; };
+const closeShareModal = async () => { showShareModal.value = false; await loadQuiz(); };
 
-const closeShareModal = async () => {
-  showShareModal.value = false;
-  await loadQuiz();
+const handleRemoveSelf = async () => {
+  if (!quiz.value || !confirm('Retirer votre accès à ce quiz ?')) return;
+  try {
+    await quizStore.removeSelf(quiz.value.id);
+    const toast = await toastController.create({ position: 'top', message: 'Accès retiré', duration: 2000, color: 'success' });
+    await toast.present();
+    router.push('/tabs/quizzes');
+  } catch {
+    const toast = await toastController.create({ position: 'top', message: 'Erreur', duration: 2000, color: 'danger' });
+    await toast.present();
+  }
 };
 
 const handleCreateGame = async () => {
@@ -154,16 +133,10 @@ const handleCreateGame = async () => {
   try {
     const game = await gameStore.createGame(quiz.value.id, quiz.value.title);
     await loading.dismiss();
-    const toast = await toastController.create({
-      message: `Partie créée ! Code : ${game.code}`,
-      duration: 5000,
-      color: 'success'
-    });
-    await toast.present();
-    router.push('/tabs/games');
+    router.push('/game/' + game.id);
   } catch {
     await loading.dismiss();
-    const toast = await toastController.create({ message: 'Erreur lors de la création', duration: 2000, color: 'danger' });
+    const toast = await toastController.create({ position: 'top', message: 'Erreur lors de la création', duration: 2000, color: 'danger' });
     await toast.present();
   }
 };
@@ -171,70 +144,213 @@ const handleCreateGame = async () => {
 
 <template>
   <ion-page>
-    <ion-header>
+    <ion-header :translucent="true">
       <ion-toolbar>
         <ion-buttons slot="start">
-          <ion-back-button default-href="/tabs/quizzes"></ion-back-button>
+          <ion-back-button default-href="/tabs/quizzes" />
         </ion-buttons>
-        <ion-title>{{ quiz?.title || 'Quiz' }}</ion-title>
         <ion-buttons slot="end">
           <ion-button @click="openShareModal" v-if="quiz && isOwner">
-            <ion-icon slot="start" :icon="shareOutline"></ion-icon>
-            Partager
+            <ion-icon slot="icon-only" :icon="shareOutline" />
           </ion-button>
           <ion-button @click="openEditModal" v-if="quiz && canEditQuiz">
-            <ion-icon slot="start" :icon="createOutline"></ion-icon>
-            Modifier
+            <ion-icon slot="icon-only" :icon="createOutline" />
           </ion-button>
         </ion-buttons>
       </ion-toolbar>
     </ion-header>
 
-    <ion-content>
-      <div v-if="isLoading" style="display: flex; justify-content: center; align-items: center; height: 100%; padding: 50px;">
-        <ion-spinner name="crescent" style="transform: scale(2);"></ion-spinner>
+    <ion-content :fullscreen="true">
+      <offline-banner v-if="!isOnline" />
+      <div v-if="isLoading" class="center-state">
+        <ion-spinner name="crescent" />
       </div>
 
-      <div v-else-if="quiz">
-      <ion-card>
-        <ion-card-header>
-          <ion-card-title>{{ quiz.title }}</ion-card-title>
-        </ion-card-header>
-        <ion-card-content>
-          <p>{{ quiz.description || 'Aucune description' }}</p>
-          <p><strong>{{ quiz.questions?.length || 0 }} question(s)</strong></p>
-          <p><em>Rôle: {{ userRole }}</em></p>
-        </ion-card-content>
-      </ion-card>
+      <div v-else-if="quiz" class="detail-container">
+        <!-- Hero -->
+        <div class="detail-hero">
+          <div class="hero-icon-box">
+            <ion-icon :icon="layersOutline" />
+          </div>
+          <h1 class="detail-title">{{ quiz.title }}</h1>
+          <p class="detail-desc" v-if="quiz.description">{{ quiz.description }}</p>
+          <div class="detail-stats">
+            <span class="stat">{{ quiz.questions?.length || 0 }} question{{ (quiz.questions?.length || 0) > 1 ? 's' : ''
+            }}</span>
+            <span class="stat-sep">--</span>
+            <span class="stat">{{ userRoleLabel }}</span>
+          </div>
+        </div>
 
-      <ion-card v-if="quiz.questions && quiz.questions.length > 0">
-        <ion-card-header>
-          <ion-card-title>Questions</ion-card-title>
-        </ion-card-header>
-        <ion-list>
-          <ion-item v-for="(question, index) in quiz.questions" :key="question.id">
-            <ion-label>
-              <h3>{{ index + 1 }}. {{ question.text }}</h3>
-              <p>{{ question.choices?.length || 0 }} réponses possibles</p>
-            </ion-label>
-          </ion-item>
-        </ion-list>
-      </ion-card>
+        <!-- Actions -->
+        <div class="detail-actions">
+          <ion-button expand="block" color="secondary" @click="handleCreateGame"
+            v-if="userRole !== 'none' && quiz.questions && quiz.questions.length > 0" class="action-main">
+            <ion-icon slot="start" :icon="playOutline" />
+            Lancer une partie
+          </ion-button>
+          <ion-button expand="block" fill="outline" color="danger" @click="handleDelete" v-if="canDeleteQuiz">
+            <ion-icon slot="start" :icon="trashOutline" />
+            Supprimer
+          </ion-button>
+          <ion-button expand="block" fill="outline" color="medium" @click="handleRemoveSelf"
+            v-if="userRole === 'editor' || userRole === 'reader'">
+            <ion-icon slot="start" :icon="exitOutline" />
+            Retirer mon accès
+          </ion-button>
+        </div>
 
-      <div style="padding: 16px;">
-        <ion-button expand="block" color="success" @click="handleCreateGame" v-if="isOwner && quiz.questions && quiz.questions.length > 0">
-          <ion-icon slot="start" :icon="playCircleOutline"></ion-icon>
-          Créer une partie
-        </ion-button>
-        <ion-button expand="block" color="danger" @click="handleDelete" v-if="canDeleteQuiz">
-          <ion-icon slot="start" :icon="trashOutline"></ion-icon>
-          Supprimer le Quiz
-        </ion-button>
+        <!-- Questions list -->
+        <div class="questions-section" v-if="quiz.questions && quiz.questions.length > 0">
+          <h2 class="section-heading">Questions</h2>
+          <div class="question-list">
+            <div v-for="(question, index) in quiz.questions" :key="question.id" class="question-row">
+              <span class="q-num">{{ index + 1 }}</span>
+              <div class="q-info">
+                <span class="q-text">{{ question.text }}</span>
+                <span class="q-meta">
+                  <template v-if="question.type === 'number'">Valeur exacte à deviner</template>
+                  <template v-else>{{ question.choices?.length || 0 }} réponses</template>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-      </div>
-      
-      <!-- Share Modal -->
+
       <ShareQuizModal :quiz="quiz" v-if="showShareModal" @close="closeShareModal" />
     </ion-content>
   </ion-page>
 </template>
+
+<style scoped>
+.center-state {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 60%;
+}
+
+.detail-container {
+  padding: 20px 16px 40px;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.detail-hero {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.hero-icon-box {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  background: var(--app-surface-alt);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  color: var(--ion-color-primary);
+  margin-bottom: 12px;
+}
+
+.detail-title {
+  font-size: 1.6rem;
+  font-weight: 800;
+  margin: 0;
+  color: var(--ion-text-color);
+}
+
+.detail-desc {
+  font-size: 0.9rem;
+  color: var(--app-text-secondary);
+  margin: 8px 0 0;
+  line-height: 1.4;
+}
+
+.detail-stats {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 0.85rem;
+  color: var(--app-text-secondary);
+}
+
+.stat-sep {
+  opacity: 0.4;
+}
+
+.detail-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 28px;
+}
+
+.action-main {
+  --border-radius: 12px;
+  font-weight: 600;
+  height: 48px;
+}
+
+.section-heading {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0 0 12px;
+  color: var(--ion-text-color);
+}
+
+.question-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.question-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.q-num {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--app-surface-alt);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--ion-color-primary);
+  flex-shrink: 0;
+}
+
+.q-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.q-text {
+  font-weight: 600;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.q-meta {
+  font-size: 0.78rem;
+  color: var(--app-text-secondary);
+}
+</style>

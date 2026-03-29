@@ -1,4 +1,4 @@
-package io.ionic.starter;
+package fr.m2gi.projetkahoot;
 
 import com.getcapacitor.BridgeActivity;
 

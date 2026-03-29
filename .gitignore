@@ -32,3 +32,4 @@ npm-debug.log*
 /www
 
 .env
+google-services.json

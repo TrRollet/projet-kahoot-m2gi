@@ -4,6 +4,8 @@ import TabsPage from '../views/TabsPage.vue'
 import HomePage from '../views/HomePage.vue'
 import GamesPage from '../views/GamesPage.vue'
 import JoinGamePage from '../views/JoinGamePage.vue'
+import SettingsPage from '../views/SettingsPage.vue'
+import AchievementsPage from '../views/AchievementsPage.vue'
 import QuizDetailPage from '../views/QuizDetailPage.vue';
 import LoginPage from '../views/LoginPage.vue';
 import RegisterPage from '../views/RegisterPage.vue';
@@ -33,7 +35,15 @@ const routes: Array<RouteRecordRaw> = [
       { path: 'quizzes', name: 'Home', component: HomePage },
       { path: 'games', name: 'Games', component: GamesPage },
       { path: 'join', name: 'Join', component: JoinGamePage },
+      { path: 'achievements', name: 'Achievements', component: AchievementsPage },
+      { path: 'settings', name: 'Settings', component: SettingsPage },
     ]
+  },
+  {
+    path: '/game/:id',
+    name: 'GamePage',
+    component: () => import('../views/GamePage.vue'),
+    meta: { requiresAuth: true }
   },
   {
     path: '/quiz/:id',
@@ -63,14 +73,15 @@ router.beforeEach(async (to, from, next) => {
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
   
   if (requiresAuth && !authStore.isConnected) {
-    // Rediriger vers login si la route nécessite l'authentification
-    next({ name: 'Login', query: { redirect: to.fullPath } })
+    next({ name: 'Login', query: { redirect: to.fullPath }, replace: true })
+    return
   } else if ((to.name === 'Login' || to.name === 'Register') && authStore.isConnected) {
     // Rediriger vers home si déjà connecté et tentative d'accès à login/register
     next({ path: '/tabs/quizzes' })
-  } else {
-    next()
+    return
   }
+
+  next()
 })
 
 

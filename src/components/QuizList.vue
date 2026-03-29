@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { IonGrid, IonRow, IonCol } from '@ionic/vue';
 import QuizCard from '@/components/QuizCard.vue';
 import type { Quiz } from '@/models/quiz';
 
@@ -11,17 +10,50 @@ defineProps<Props>();
 
 const emit = defineEmits<{
   quizClick: [quizId: string];
+  quizLaunch: [quiz: Quiz];
 }>();
 </script>
 
 <template>
-  <ion-grid>
-    <ion-row>
-      <ion-col v-for="quiz in quizzes" :key="quiz.id" size="12" size-sm="6" size-md="4" size-lg="3">
-        <quiz-card :quiz="quiz" @click="emit('quizClick', quiz.id)" />
-      </ion-col>
-    </ion-row>
-  </ion-grid>
+  <div class="quiz-grid" v-if="quizzes.length > 0">
+    <quiz-card
+      v-for="quiz in quizzes"
+      :key="quiz.id"
+      :quiz="quiz"
+      @click="emit('quizClick', quiz.id)"
+      @launch="emit('quizLaunch', quiz)"
+    />
+  </div>
+  <div v-else class="empty-state">
+    <p class="empty-text">Aucun quiz pour l'instant</p>
+    <p class="empty-hint">Creez votre premier quiz avec le bouton +</p>
+  </div>
 </template>
 
-<style scoped></style>
+<style scoped>
+.quiz-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 16px 100px;
+}
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+}
+.empty-text {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--ion-text-color);
+  margin: 0 0 4px;
+}
+.empty-hint {
+  font-size: 0.85rem;
+  color: var(--app-text-secondary);
+  margin: 0;
+}
+</style>

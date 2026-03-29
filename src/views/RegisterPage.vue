@@ -1,30 +1,24 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.store'
 import {
   IonPage,
-  IonHeader,
-  IonToolbar,
-  IonTitle,
   IonContent,
-  IonCard,
-  IonCardHeader,
-  IonCardTitle,
-  IonCardContent,
-  IonItem,
-  IonLabel,
   IonInput,
   IonButton,
-  IonText,
+  IonIcon,
   IonSpinner,
-  IonBackButton,
-  IonButtons,
   toastController
 } from '@ionic/vue'
+import { schoolOutline, arrowBackOutline } from 'ionicons/icons'
+import { useNetwork } from '@/utils/useNetwork'
+import OfflineBanner from '@/components/OfflineBanner.vue'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
+const { isOnline } = useNetwork()
 
 const email = ref('')
 const password = ref('')
@@ -33,9 +27,11 @@ const username = ref('')
 const isSubmitting = ref(false)
 
 const handleRegister = async () => {
+  if (!isOnline.value) return
   // Validation
   if (!email.value || !password.value || !confirmPassword.value || !username.value) {
     const toast = await toastController.create({
+      position: 'top',
       message: 'Veuillez remplir tous les champs',
       duration: 2000,
       color: 'warning'
@@ -47,6 +43,7 @@ const handleRegister = async () => {
   const usernameRegex = /^[a-zA-Z0-9_]{3,20}$/
   if (!usernameRegex.test(username.value.trim())) {
     const toast = await toastController.create({
+      position: 'top',
       message: 'Le pseudo doit contenir 3 à 20 caractères (lettres, chiffres, _)',
       duration: 3000,
       color: 'warning'
@@ -57,6 +54,7 @@ const handleRegister = async () => {
 
   if (password.value !== confirmPassword.value) {
     const toast = await toastController.create({
+      position: 'top',
       message: 'Les mots de passe ne correspondent pas',
       duration: 2000,
       color: 'warning'
@@ -67,6 +65,7 @@ const handleRegister = async () => {
 
   if (password.value.length < 6) {
     const toast = await toastController.create({
+      position: 'top',
       message: 'Le mot de passe doit contenir au moins 6 caractères',
       duration: 2000,
       color: 'warning'
@@ -78,11 +77,12 @@ const handleRegister = async () => {
   isSubmitting.value = true
   try {
     await authStore.createUser(email.value, password.value, username.value)
-    
+
     // Envoyer l'email de vérification
     try {
       await authStore.sendVerificationEmail()
       const toast = await toastController.create({
+        position: 'top',
         message: 'Compte créé ! Vérifiez votre email avant de vous connecter.',
         duration: 5000,
         color: 'success'
@@ -91,18 +91,21 @@ const handleRegister = async () => {
     } catch (verifyError) {
       // Si l'envoi de l'email échoue, on continue quand même
       const toast = await toastController.create({
+        position: 'top',
         message: 'Compte créé ! Vérifiez votre email avant de vous connecter.',
         duration: 4000,
         color: 'success'
       })
       await toast.present()
     }
-    
+
     // Déconnecter l'utilisateur et rediriger vers login
     await authStore.signOut()
-    router.push('/login')
+    const loginQuery = route.query.redirect ? { redirect: route.query.redirect as string } : {}
+    router.push({ name: 'Login', query: loginQuery })
   } catch (error: any) {
     const toast = await toastController.create({
+      position: 'top',
       message: authStore.error || 'Erreur lors de la création du compte',
       duration: 3000,
       color: 'danger'
@@ -114,129 +117,116 @@ const handleRegister = async () => {
 }
 
 const goToLogin = () => {
-  router.push('/login')
+  const query = route.query.redirect ? { redirect: route.query.redirect as string } : {}
+  router.push({ name: 'Login', query })
 }
 </script>
 
 <template>
   <ion-page>
-    <ion-header>
-      <ion-toolbar>
-        <ion-buttons slot="start">
-          <ion-back-button default-href="/login"></ion-back-button>
-        </ion-buttons>
-        <ion-title>Créer un compte</ion-title>
-      </ion-toolbar>
-    </ion-header>
+    <ion-content class="ion-padding" :fullscreen="true">
+      <offline-banner v-if="!isOnline" />
+      <div class="auth-container">
+        <ion-button fill="clear" size="small" class="back-btn" @click="goToLogin">
+          <ion-icon slot="start" :icon="arrowBackOutline" />
+          Retour
+        </ion-button>
 
-    <ion-content class="ion-padding">
-      <div class="register-container">
-        <ion-card>
-          <ion-card-header>
-            <ion-card-title>Inscription</ion-card-title>
-          </ion-card-header>
+        <div class="auth-brand">
+          <ion-icon :icon="schoolOutline" class="brand-icon" />
+          <h1 class="brand-title">Inscription</h1>
+        </div>
 
-          <ion-card-content>
-            <form @submit.prevent="handleRegister">
-              <ion-item>
-                <ion-label position="stacked">Pseudo</ion-label>
-                <ion-input
-                  v-model="username"
-                  type="text"
-                  placeholder="mon_pseudo"
-                  required
-                  autocomplete="username"
-                />
-              </ion-item>
+        <form @submit.prevent="handleRegister" class="auth-form">
+          <ion-input v-model="username" type="text" label="Pseudo" label-placement="floating" fill="outline"
+            placeholder="mon_pseudo" autocomplete="username" :maxlength="20" class="auth-input" />
+          <ion-input v-model="email" type="email" label="Email" label-placement="floating" fill="outline"
+            placeholder="votre@email.com" autocomplete="email" class="auth-input" />
+          <ion-input v-model="password" type="password" label="Mot de passe" label-placement="floating" fill="outline"
+            placeholder="6 caractères minimum" autocomplete="new-password" class="auth-input" />
+          <ion-input v-model="confirmPassword" type="password" label="Confirmer le mot de passe"
+            label-placement="floating" fill="outline" placeholder="********" autocomplete="new-password"
+            class="auth-input" />
 
-              <ion-item>
-                <ion-label position="stacked">Email</ion-label>
-                <ion-input
-                  v-model="email"
-                  type="email"
-                  placeholder="votre@email.com"
-                  required
-                  autocomplete="email"
-                />
-              </ion-item>
+          <ion-button expand="block" type="submit" :disabled="isSubmitting || !isOnline" class="auth-btn">
+            <ion-spinner v-if="isSubmitting" name="crescent" />
+            <span v-else>Créer mon compte</span>
+          </ion-button>
+        </form>
 
-              <ion-item>
-                <ion-label position="stacked">Mot de passe</ion-label>
-                <ion-input
-                  v-model="password"
-                  type="password"
-                  placeholder="••••••••"
-                  required
-                  autocomplete="new-password"
-                />
-              </ion-item>
-
-              <ion-item>
-                <ion-label position="stacked">Confirmer le mot de passe</ion-label>
-                <ion-input
-                  v-model="confirmPassword"
-                  type="password"
-                  placeholder="••••••••"
-                  required
-                  autocomplete="new-password"
-                />
-              </ion-item>
-
-              <ion-button
-                expand="block"
-                type="submit"
-                :disabled="isSubmitting"
-                style="margin-top: 20px;"
-              >
-                <ion-spinner v-if="isSubmitting" name="crescent" />
-                <span v-else>
-                  Créer mon compte
-                </span>
-              </ion-button>
-            </form>
-
-            <div class="login-link">
-              <ion-text color="medium">
-                Déjà un compte ?
-              </ion-text>
-              <ion-button fill="clear" @click="goToLogin">
-                Se connecter
-              </ion-button>
-            </div>
-          </ion-card-content>
-        </ion-card>
+        <div class="auth-footer">
+          <span class="footer-text">Déjà un compte ?</span>
+          <ion-button fill="clear" size="small" @click="goToLogin">Se connecter</ion-button>
+        </div>
       </div>
     </ion-content>
   </ion-page>
 </template>
 
 <style scoped>
-.register-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100%;
-  padding: 20px;
-}
-
-ion-card {
-  max-width: 500px;
-  width: 100%;
-}
-
-ion-item {
-  margin-bottom: 16px;
-}
-
-.login-link {
-  text-align: center;
-  margin-top: 20px;
+.auth-container {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: 24px 20px;
+  max-width: 400px;
+  margin: 0 auto;
 }
 
-.login-link ion-button {
-  margin-top: -10px;
+.back-btn {
+  align-self: flex-start;
+  --color: var(--app-text-secondary);
+  margin-bottom: 8px;
+}
+
+.auth-brand {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.brand-icon {
+  font-size: 2.8rem;
+  color: var(--ion-color-primary);
+  margin-bottom: 8px;
+}
+
+.brand-title {
+  font-size: 1.8rem;
+  font-weight: 800;
+  margin: 0;
+  color: var(--ion-text-color);
+}
+
+.auth-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.auth-input {
+  --border-radius: 12px;
+}
+
+.auth-btn {
+  --border-radius: 12px;
+  margin-top: 6px;
+  font-weight: 600;
+  height: 48px;
+}
+
+.auth-footer {
+  margin-top: 24px;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.footer-text {
+  color: var(--app-text-secondary);
+  font-size: 0.9rem;
 }
 </style>

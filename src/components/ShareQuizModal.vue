@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import {
   IonModal,
   IonHeader,
@@ -34,18 +34,14 @@ const authStore = useAuthStore()
 const userIdentifier = ref('')
 const role = ref<'editor' | 'reader'>('editor')
 const adding = ref(false)
-const editorsWithUsernames = ref<Array<{uid: string, username: string | null}>>([])
-const readersWithUsernames = ref<Array<{uid: string, username: string | null}>>([])
+const editorsWithUsernames = ref<Array<{ uid: string, username: string | null }>>([])
+const readersWithUsernames = ref<Array<{ uid: string, username: string | null }>>([])
 
-const editors = computed(() => props.quiz?.editors || [])
-const readers = computed(() => props.quiz?.readers || [])
-
-// Charger les emails des collaborateurs
 onMounted(async () => {
-  await loadCollaboratorsEmails()
+  await loadCollaborators()
 })
 
-async function loadCollaboratorsEmails() {
+async function loadCollaborators() {
   if (!props.quiz) return
 
   const editorsPromises = (props.quiz.editors || []).map(async (uid) => {
@@ -72,6 +68,7 @@ async function handleAddUser() {
     const foundUid = await authStore.getUserIdByUsername(userIdentifier.value.trim())
     if (!foundUid) {
       const toast = await toastController.create({
+        position: 'top',
         message: 'Aucun utilisateur trouvé avec ce pseudo',
         duration: 3000,
         color: 'warning'
@@ -81,10 +78,11 @@ async function handleAddUser() {
       return
     }
     const uid = foundUid
-    
+
     // Vérifier qu'on ne s'ajoute pas soi-même
     if (uid === authStore.currentUser?.uid) {
       const toast = await toastController.create({
+        position: 'top',
         message: 'Vous ne pouvez pas vous ajouter vous-même aux collaborateurs',
         duration: 3000,
         color: 'warning'
@@ -93,13 +91,14 @@ async function handleAddUser() {
       adding.value = false
       return
     }
-    
+
     // Vérifier que l'utilisateur n'est pas déjà dans la liste
     const alreadyEditor = props.quiz.editors?.includes(uid)
     const alreadyReader = props.quiz.readers?.includes(uid)
-    
+
     if (alreadyEditor || alreadyReader) {
       const toast = await toastController.create({
+        position: 'top',
         message: 'Cet utilisateur a déjà accès à ce quiz',
         duration: 3000,
         color: 'warning'
@@ -108,7 +107,7 @@ async function handleAddUser() {
       adding.value = false
       return
     }
-    
+
     if (role.value === 'editor') {
       await quizStore.addEditor(props.quiz.id, uid)
     } else {
@@ -116,6 +115,7 @@ async function handleAddUser() {
     }
 
     const toast = await toastController.create({
+      position: 'top',
       message: 'Utilisateur ajouté avec succès',
       duration: 2000,
       color: 'success'
@@ -128,14 +128,15 @@ async function handleAddUser() {
       // Mettre à jour la référence du quiz
       Object.assign(props.quiz, updatedQuiz)
     }
-    
+
     // Recharger les pseudos
-    await loadCollaboratorsEmails()
+    await loadCollaborators()
 
     // Réinitialiser le formulaire
     userIdentifier.value = ''
   } catch (error) {
     const toast = await toastController.create({
+      position: 'top',
       message: 'Erreur lors de l\'ajout de l\'utilisateur',
       duration: 2000,
       color: 'danger'
@@ -154,22 +155,24 @@ async function handleRemoveEditor(editorId: string) {
     await quizStore.removeEditor(props.quiz.id, editorId)
 
     const toast = await toastController.create({
+      position: 'top',
       message: 'Éditeur retiré avec succès',
       duration: 2000,
       color: 'success'
     })
     await toast.present()
-    
+
     // Recharger le quiz complet depuis Firestore
     const updatedQuiz = await quizStore.fetchQuizById(props.quiz.id)
     if (updatedQuiz) {
       Object.assign(props.quiz, updatedQuiz)
     }
-    
+
     // Recharger les pseudos
-    await loadCollaboratorsEmails()
+    await loadCollaborators()
   } catch (error) {
     const toast = await toastController.create({
+      position: 'top',
       message: 'Erreur lors du retrait de l\'éditeur',
       duration: 2000,
       color: 'danger'
@@ -186,22 +189,24 @@ async function handleRemoveReader(readerId: string) {
     await quizStore.removeReader(props.quiz.id, readerId)
 
     const toast = await toastController.create({
+      position: 'top',
       message: 'Lecteur retiré avec succès',
       duration: 2000,
       color: 'success'
     })
     await toast.present()
-    
+
     // Recharger le quiz complet depuis Firestore
     const updatedQuiz = await quizStore.fetchQuizById(props.quiz.id)
     if (updatedQuiz) {
       Object.assign(props.quiz, updatedQuiz)
     }
-    
+
     // Recharger les pseudos
-    await loadCollaboratorsEmails()
+    await loadCollaborators()
   } catch (error) {
     const toast = await toastController.create({
+      position: 'top',
       message: 'Erreur lors du retrait du lecteur',
       duration: 2000,
       color: 'danger'
@@ -245,12 +250,8 @@ function handleClose() {
           <h3>Ajouter un utilisateur</h3>
           <ion-item>
             <ion-label position="stacked">Pseudo de l'utilisateur</ion-label>
-            <ion-input
-              v-model="userIdentifier"
-              type="text"
-              placeholder="pseudo_de_l_utilisateur"
-              :disabled="adding"
-            ></ion-input>
+            <ion-input v-model="userIdentifier" type="text" placeholder="pseudo_de_l_utilisateur"
+              :disabled="adding"></ion-input>
           </ion-item>
           <ion-item>
             <ion-label>Rôle</ion-label>
@@ -259,11 +260,7 @@ function handleClose() {
               <ion-select-option value="reader">Lecteur</ion-select-option>
             </ion-select>
           </ion-item>
-          <ion-button
-            expand="block"
-            @click="handleAddUser"
-            :disabled="adding || !userIdentifier.trim()"
-          >
+          <ion-button expand="block" @click="handleAddUser" :disabled="adding || !userIdentifier.trim()">
             {{ adding ? 'Ajout en cours...' : 'Ajouter' }}
           </ion-button>
         </div>
@@ -276,12 +273,7 @@ function handleClose() {
               <ion-label>
                 <h3>{{ editor.username || 'Pseudo non trouvé' }}</h3>
               </ion-label>
-              <ion-button
-                slot="end"
-                fill="clear"
-                color="danger"
-                @click="handleRemoveEditor(editor.uid)"
-              >
+              <ion-button slot="end" fill="clear" color="danger" @click="handleRemoveEditor(editor.uid)">
                 <ion-icon :icon="trashOutline"></ion-icon>
               </ion-button>
             </ion-item>
@@ -297,12 +289,7 @@ function handleClose() {
               <ion-label>
                 <h3>{{ reader.username || 'Pseudo non trouvé' }}</h3>
               </ion-label>
-              <ion-button
-                slot="end"
-                fill="clear"
-                color="danger"
-                @click="handleRemoveReader(reader.uid)"
-              >
+              <ion-button slot="end" fill="clear" color="danger" @click="handleRemoveReader(reader.uid)">
                 <ion-icon :icon="trashOutline"></ion-icon>
               </ion-button>
             </ion-item>
@@ -344,5 +331,13 @@ function handleClose() {
   color: var(--ion-color-medium);
   font-style: italic;
   padding: 1rem;
+}
+
+ion-select {
+  color: var(--ion-text-color);
+}
+
+ion-item {
+  --color: var(--ion-text-color);
 }
 </style>
