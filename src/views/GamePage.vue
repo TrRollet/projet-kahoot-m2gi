@@ -16,6 +16,7 @@ import { useAchievementsStore } from '@/stores/achievements.store'
 import { TIME_LIMIT } from '@/models/game'
 import QRCode from 'qrcode'
 import { Keyboard } from '@capacitor/keyboard'
+import { Capacitor } from '@capacitor/core'
 
 const route = useRoute()
 const router = useRouter()
@@ -406,9 +407,11 @@ watch(gameId, async (id) => {
   }
 
   // Listeners clavier (une seule fois suffit mais on les remet pour s'assurer qu'ils sont actifs)
-  Keyboard.removeAllListeners()
-  Keyboard.addListener('keyboardWillShow', () => { isKeyboardOpen.value = true })
-  Keyboard.addListener('keyboardWillHide', () => { isKeyboardOpen.value = false })
+  if (Capacitor.isNativePlatform()) {
+    Keyboard.removeAllListeners()
+    Keyboard.addListener('keyboardWillShow', () => { isKeyboardOpen.value = true })
+    Keyboard.addListener('keyboardWillHide', () => { isKeyboardOpen.value = false })
+  }
 }, { immediate: true })
 
 onUnmounted(() => {
@@ -416,7 +419,7 @@ onUnmounted(() => {
   if (unsubPlayers) unsubPlayers()
   stopTimer()
   gameStore.gameNotFound = false
-  Keyboard.removeAllListeners()
+  if (Capacitor.isNativePlatform()) Keyboard.removeAllListeners()
 })
 
 watch(
