@@ -20,6 +20,7 @@ import {
   type User
 } from 'firebase/auth'
 import { doc, setDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore'
+import { useGameStore } from './game.store'
 
 export const useAuthStore = defineStore('auth', () => {
   // State
@@ -54,6 +55,7 @@ export const useAuthStore = defineStore('auth', () => {
             currentUsername.value = userDocSnap.exists() ? (userDocSnap.data().username || null) : null
           } else {
             currentUsername.value = null
+            useGameStore().reset()
           }
         } catch {
           currentUsername.value = null

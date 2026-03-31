@@ -21,7 +21,7 @@ import {
   orderBy
 } from 'firebase/firestore'
 import type { Game } from '@/models/game'
-import type { Question } from '@/models/question'
+import type { Question } from '@/models/question/types'
 import { TIME_LIMIT } from '@/models/game'
 import type { GamePlayer } from '@/models/game-player'
 
@@ -371,6 +371,14 @@ export const useGameStore = defineStore('game', () => {
     return points
   }
 
+  function reset(): void {
+    if (gamesUnsub) { gamesUnsub(); gamesUnsub = null }
+    games.value = []
+    currentGame.value = null
+    players.value = []
+    loading.value = false
+  }
+
   return {
     games,
     loading,
@@ -380,6 +388,7 @@ export const useGameStore = defineStore('game', () => {
     subscribeToGame,
     subscribeToPlayers,
     fetchMyGames,
+    reset,
     createGame,
     getGameByCode,
     ensureJoined,
