@@ -4,7 +4,7 @@ import { closeOutline, checkmarkOutline, addOutline, trashOutline, createOutline
 import type { ItemReorderEventDetail } from '@ionic/vue';
 import { ref, onMounted } from 'vue';
 import type { Quiz } from '@/models/quiz';
-import type { Question } from '@/models/question';
+import type { Question, SingleChoiceQuestion } from '@/models/question/types';
 import type { Choice } from '@/models/choice';
 import { compressImage } from '@/utils/image';
 
@@ -68,13 +68,10 @@ const isFormValid = () => {
     if (question.type === 'number') {
       if (typeof question.correctNumber !== 'number') return false;
     } else {
-      for (const choice of question.choices) {
+      for (const choice of (question as SingleChoiceQuestion).choices) {
         if (choice.text.trim() === '' && !choice.imageBase64) {
           return false;
         }
-      }
-      if (question.type === 'multiple' && (!question.correctAnswers || question.correctAnswers.length === 0)) {
-        return false;
       }
     }
   }
@@ -104,7 +101,7 @@ const addQuestion = async () => {
         text: 'Ajouter',
         handler: (data) => {
           if (data.questionText && data.questionText.trim()) {
-            const newQuestion: Question = {
+            const newQuestion: SingleChoiceQuestion = {
               id: generateUniqueId(),
               type: 'single',
               text: data.questionText,
@@ -113,8 +110,6 @@ const addQuestion = async () => {
                 { id: generateUniqueId(), text: '' }
               ],
               correctAnswerIndex: 0,
-              correctAnswers: [],
-              correctNumber: 0
             };
             formData.value.questions.push(newQuestion);
             return true;
@@ -183,20 +178,21 @@ const deleteQuestion = async (index: number) => {
 };
 
 const addChoice = (questionIndex: number) => {
-  if (formData.value.questions[questionIndex].choices.length >= 4) return;
+  const question = formData.value.questions[questionIndex] as SingleChoiceQuestion;
+  if (question.choices.length >= 4) return;
   const newChoice: Choice = {
     id: generateUniqueId(),
     text: ''
   };
-  formData.value.questions[questionIndex].choices.push(newChoice);
+  question.choices.push(newChoice);
 };
 
 const updateChoiceText = (questionIndex: number, choiceIndex: number, event: any) => {
-  formData.value.questions[questionIndex].choices[choiceIndex].text = event.target.value;
+  (formData.value.questions[questionIndex] as SingleChoiceQuestion).choices[choiceIndex].text = event.target.value;
 };
 
 const deleteChoice = (questionIndex: number, choiceIndex: number) => {
-  const question = formData.value.questions[questionIndex];
+  const question = formData.value.questions[questionIndex] as SingleChoiceQuestion;
   if (question.choices.length > 2) {
     question.choices.splice(choiceIndex, 1);
     if (question.correctAnswerIndex >= question.choices.length) {
@@ -208,17 +204,7 @@ const deleteChoice = (questionIndex: number, choiceIndex: number) => {
 };
 
 const setCorrectAnswer = (questionIndex: number, choiceIndex: number) => {
-  formData.value.questions[questionIndex].correctAnswerIndex = choiceIndex;
-};
-
-const toggleMultipleAnswer = (questionIndex: number, choiceIndex: number, checked: boolean) => {
-  const q = formData.value.questions[questionIndex];
-  if (!q.correctAnswers) q.correctAnswers = [];
-  if (checked) {
-    if (!q.correctAnswers.includes(choiceIndex)) q.correctAnswers.push(choiceIndex);
-  } else {
-    q.correctAnswers = q.correctAnswers.filter(i => i !== choiceIndex);
-  }
+  (formData.value.questions[questionIndex] as SingleChoiceQuestion).correctAnswerIndex = choiceIndex;
 };
 
 const handleReorder = (event: CustomEvent<ItemReorderEventDetail>) => {
@@ -259,7 +245,7 @@ async function handleFileSelected(event: Event) {
   if (target.type === 'question') {
     formData.value.questions[target.questionIndex].imageBase64 = base64
   } else {
-    formData.value.questions[target.questionIndex].choices[target.choiceIndex].imageBase64 = base64
+    (formData.value.questions[target.questionIndex] as SingleChoiceQuestion).choices[target.choiceIndex].imageBase64 = base64
   }
 
   // Reset pour permettre de re-sélectionner le même fichier
@@ -271,7 +257,7 @@ function removeQuestionImage(questionIndex: number) {
 }
 
 function removeChoiceImage(questionIndex: number, choiceIndex: number) {
-  delete formData.value.questions[questionIndex].choices[choiceIndex].imageBase64
+  delete (formData.value.questions[questionIndex] as SingleChoiceQuestion).choices[choiceIndex].imageBase64
 }
 </script>
 
@@ -362,7 +348,6 @@ function removeChoiceImage(questionIndex: number, choiceIndex: number) {
                 <p class="choices-hint" style="margin-top: 12px">Type de question</p>
                 <ion-select v-model="question.type" interface="popover" fill="outline" class="form-input">
                   <ion-select-option value="single">Choix unique</ion-select-option>
-                  <ion-select-option value="multiple">Choix multiples</ion-select-option>
                   <ion-select-option value="number">Nombre exact (le plus proche)</ion-select-option>
                 </ion-select>
 
@@ -372,22 +357,14 @@ function removeChoiceImage(questionIndex: number, choiceIndex: number) {
                   <ion-input type="number" v-model.number="question.correctNumber" placeholder="Ex: 42" fill="outline" class="form-input" />
                 </template>
 
-                <!-- Si type Choix (Single ou Multiple) -->
-                <template v-else>
-                  <p class="choices-hint" style="margin-top: 12px">Réponses (cochez la/les bonne(s))</p>
+                <!-- Si type Choix unique -->
+                <template v-else-if="question.type === 'single'">
+                  <p class="choices-hint" style="margin-top: 12px">Réponses (cochez la bonne)</p>
                 <div v-for="(choice, cIndex) in question.choices" :key="choice.id" class="choice-block">
                   <div class="choice-row">
-                    <!-- Pour 'single' -->
                     <ion-checkbox
-                      v-if="!question.type || question.type === 'single'"
                       :checked="question.correctAnswerIndex === cIndex"
                       @ionChange="setCorrectAnswer(qIndex, cIndex)"
-                    />
-                    <!-- Pour 'multiple' -->
-                    <ion-checkbox
-                      v-else-if="question.type === 'multiple'"
-                      :checked="question.correctAnswers?.includes(cIndex)"
-                      @ionChange="toggleMultipleAnswer(qIndex, cIndex, $event.detail.checked)"
                     />
                     <ion-input
                       :value="choice.text"

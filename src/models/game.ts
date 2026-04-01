@@ -1,6 +1,6 @@
 export const TIME_LIMIT = 20 // secondes par question (fixe)
 
-import type { Question } from './question'
+import type { Question } from './question/types'
 
 export interface Game {
   id: string
