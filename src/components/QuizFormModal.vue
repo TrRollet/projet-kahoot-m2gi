@@ -353,6 +353,12 @@ function removeChoiceImage(questionIndex: number, choiceIndex: number) {
 
                 <!-- Si type Nombre -->
                 <template v-if="question.type === 'number'">
+                  <p class="choices-hint" style="margin-top: 12px">Type de nombre</p>
+                  <ion-select v-model="question.numberType" interface="popover" fill="outline" class="form-input" placeholder="Sélectionner...">
+                    <ion-select-option value="amount">Quantité / Montant</ion-select-option>
+                    <ion-select-option value="date">Année / Date</ion-select-option>
+                    <ion-select-option value="percent">Pourcentage</ion-select-option>
+                  </ion-select>
                   <p class="choices-hint" style="margin-top: 12px">Bonne réponse (nombre)</p>
                   <ion-input type="number" v-model.number="question.correctNumber" placeholder="Ex: 42" fill="outline" class="form-input" />
                 </template>
